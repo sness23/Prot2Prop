@@ -110,9 +110,12 @@ def load_model_and_tokenizer(checkpoint_path: Path):
     task_adapter_dim = model_config.get("task_adapter_dim", TASK_ADAPTER_DIM)
 
   tokenizer = T5Tokenizer.from_pretrained(model_name, do_lower_case=False)
-  base_model = T5EncoderModel.from_pretrained(model_name).to(DEVICE)
+  base_model = T5EncoderModel.from_pretrained(model_name)
   if DEVICE.type == "cuda":
-    base_model.bfloat16()
+    # Cast to bf16 on CPU before moving to the GPU so we never need the full fp32
+    # copy in VRAM. This avoids OOM on smaller (e.g. 8GB) cards.
+    base_model = base_model.bfloat16()
+  base_model = base_model.to(DEVICE)
 
   model = MultiTaskAdapterModel(
     base_model,
